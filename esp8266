@@ -1,0 +1,88 @@
+Connections:
+
+MFRC522 RFID Module to ESP8266:
+SDA to D4 (GPIO 2)
+SCK to D5 (GPIO 14)
+MOSI to D7 (GPIO 13)
+MISO to D6 (GPIO 12)
+RST to D3 (GPIO 0)
+3.3V to 3.3V on ESP8266
+GND to GND on ESP8266
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#include <SPI.h>
+#include <MFRC522.h>
+#include <ESP8266WiFi.h>
+
+#define RST_PIN D3
+#define SS_PIN D4
+
+MFRC522 mfrc522(SS_PIN, RST_PIN);  // Create MFRC522 instance
+
+// Replace these with your network credentials
+const char* ssid = "your_SSID";
+const char* password = "your_PASSWORD";
+
+// Replace with your server URL and endpoint
+const char* server = "http://yourdomain.com/record_attendance.php";
+
+WiFiClient client;
+
+void setup() {
+  Serial.begin(115200);  // Initialize serial communication
+  SPI.begin();           // Initialize SPI bus
+  mfrc522.PCD_Init();   // Initialize MFRC522
+  
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to WiFi!");
+}
+
+void loop() {
+  if (!mfrc522.PICC_IsNewCardPresent()) {
+    return;  // No new card present, return to loop
+  }
+
+  if (!mfrc522.PICC_ReadCardSerial()) {
+    return;  // No card read, return to loop
+  }
+
+  String tagID = "";  // Variable to store the tag ID
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
+    tagID += String(mfrc522.uid.uidByte[i] < 0x10 ? "0" : "");
+    tagID += String(mfrc522.uid.uidByte[i], HEX);
+  }
+  tagID.toUpperCase();
+
+  // Get current time (in a real-world scenario, consider using NTP for accurate time)
+  String currentTime = getCurrentTime();
+
+  // Create URL with data to send
+  String url = String(server) + "?tagID=" + tagID + "&time=" + currentTime;
+
+  // Send data to server
+  if (client.connect(server, 80)) {
+    client.println("GET " + url + " HTTP/1.1");
+    client.println("Host: " + String(server));
+    client.println("Connection: close");
+    client.println();
+    delay(1000);
+    client.stop();
+  } else {
+    Serial.println("Connection failed");
+  }
+
+  delay(2000);  // Wait before scanning the next card
+}
+
+// Dummy function to get current time (replace with actual implementation)
+String getCurrentTime() {
+  // Implement actual time retrieval here
+  // For example, using NTP or an RTC module
+  return "2024-08-29 12:00:00";
+}
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
